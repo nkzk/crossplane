@@ -159,8 +159,7 @@ func findImageTagForVersionConstraint(image string) (string, error) {
 		isConstraint = false
 	}
 
-	_, err = semver.NewVersion(imageTag)
-	if err != nil {
+	if _, err := semver.NewVersion(imageTag); err != nil {
 		isExactVersion = false
 	}
 
