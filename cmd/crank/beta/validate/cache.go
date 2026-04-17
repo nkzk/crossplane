@@ -17,7 +17,6 @@ limitations under the License.
 package validate
 
 import (
-	"fmt"
 	iofs "io/fs"
 	"os"
 	"path"
@@ -103,7 +102,7 @@ func (c *LocalCache) Load(image string) ([]*unstructured.Unstructured, error) {
 	cacheImagePath := c.getCachePath(image)
 	imageBase, imageTag := separateImageTag(image)
 
-	if isConstraint(imageTag) {
+	if isRangedConstraint(imageTag) {
 		var err error
 		cacheImagePath, err = c.findLatestCachedVersionForConstraint(image)
 		if err != nil {
@@ -137,8 +136,9 @@ func (c *LocalCache) Exists(image string) (string, error) {
 	path := c.getCachePath(image)
 
 	_, imageTag := separateImageTag(image)
-	// if the image-tag is a constraint we need to try to find the latest cached version that satisfies that constraint
-	if isConstraint(imageTag) {
+
+	// if the image-tag is a ranged constraint we need to try to find the latest cached version that satisfies that constraint
+	if isRangedConstraint(imageTag) {
 		v, err := c.findLatestCachedVersionForConstraint(image)
 		if err != nil {
 			return "", errors.Wrapf(err, "failed to scan cache for constraint")
@@ -169,8 +169,8 @@ func (c *LocalCache) getCachePath(image string) string {
 	return filepath.Join(c.cacheDir, cacheImagePath)
 }
 
-// isConstraint checks if a string is a semantic version constraint.
-func isConstraint(tag string) bool {
+// isConstraint checks if a string is a semantic version constraint, but not an exact version
+func isRangedConstraint(tag string) bool {
 	if _, err := semver.NewVersion(tag); err == nil {
 		return false
 	}
@@ -180,13 +180,13 @@ func isConstraint(tag string) bool {
 
 // findLatestCachedVersionForConstraint returns the cache-path for the latest tag that matches the image version constraint.
 // On cache miss, an empty string is returned.
-// The image must be a valid image name with the format: <registry>/<image>:<tag>, where tag can be a semantic version constraint.
+// The image must be a valid image name with the format: <registry>/<image>:<tag>.
 func (c *LocalCache) findLatestCachedVersionForConstraint(image string) (string, error) {
 	imageBase, imageTag := separateImageTag(image)
 
 	constraint, err := semver.NewConstraint(imageTag)
 	if err != nil {
-		return "", nil
+		return "", errors.Wrapf(err, "%s is not a valid constraint", imageTag)
 	}
 
 	cachePath := c.getCachePath(image)
@@ -195,15 +195,20 @@ func (c *LocalCache) findLatestCachedVersionForConstraint(image string) (string,
 	cacheDir := filepath.Dir(cachePath)
 
 	tags := []string{}
-	err = filepath.WalkDir(cacheDir, func(p string, d iofs.DirEntry, err error) error {
+	err = filepath.WalkDir(cacheDir, func(_ string, d iofs.DirEntry, err error) error {
 		if err != nil {
-			return nil
+			if errors.Is(err, iofs.ErrNotExist) {
+				// the walk will fail on first run (directories dont exist) - ignore it
+				return nil
+			}
+
+			return err
 		}
 
 		if d.IsDir() && strings.HasPrefix(d.Name(), path.Base(imageBase)) {
 			i := strings.Index(d.Name(), "@")
 			if i == -1 {
-				return errors.New(fmt.Sprintf("the cache entry '%s' does not contain a tag", d.Name()))
+				return errors.Errorf("the cache entry '%s' does not contain a tag", d.Name())
 			}
 
 			tags = append(tags, d.Name()[i+1:])
