@@ -51,6 +51,8 @@ type LocalCache struct {
 
 // Store stores the schemas in the directory.
 func (c *LocalCache) Store(schemas [][]byte, path string) error {
+	path = c.getCachePath(path)
+
 	if err := c.fs.MkdirAll(path, os.ModePerm); err != nil {
 		return errors.Wrapf(err, "cannot create directory %s", path)
 	}
@@ -98,11 +100,13 @@ func (c *LocalCache) Flush() error {
 // <tag> can be a constraint, in which case the latest version of the schema that satisfies this constraint
 // is loaded from the cache.
 func (c *LocalCache) Load(image string) ([]*unstructured.Unstructured, error) {
-	imageBase, imageTag := separateImageTag(image)
+	fmt.Printf("loading: %s\n", image)
 	cacheImagePath := c.getCachePath(image)
+	imageBase, imageTag := separateImageTag(image)
 
 	if isConstraint(imageTag) {
-		cacheImagePath, err := c.findLatestCachedVersionForConstraint(image)
+		var err error
+		cacheImagePath, err = c.findLatestCachedVersionForConstraint(image)
 		if err != nil {
 			return nil, errors.Wrapf(err,
 				"failed to scan cache for entries that matches image %s with the constraint %s",
@@ -130,21 +134,24 @@ func (c *LocalCache) Load(image string) ([]*unstructured.Unstructured, error) {
 // Exists checks if the cache contains the image and returns the path if it doesn't exist.
 // If the input had a semantic version constraint, the returned cache-path will include it on cache miss.
 func (c *LocalCache) Exists(image string) (string, error) {
+	fmt.Printf("checking if exists: %s\n", image)
 	path := c.getCachePath(image)
 
-	// if the image is a constraint we need to try to find the latest cached version that satisfies that constraint
-	if isConstraint(image) {
+	_, imageTag := separateImageTag(image)
+	// if the image-tag is a constraint we need to try to find the latest cached version that satisfies that constraint
+	if isConstraint(imageTag) {
 		v, err := c.findLatestCachedVersionForConstraint(image)
 		if err != nil {
 			return "", errors.Wrapf(err, "failed to scan cache for constraint")
 		}
 
 		if v == "" {
-			// cache miss, return the cache-path including the constraint
+			// valid version for constraint not found
+			fmt.Printf("valid version for constraint not found\n")
 			return path, nil
 		}
 
-		// if no version matching the constraint was found in cache, return cache miss
+		// valid version for constraint was found
 		return "", nil
 	}
 
@@ -166,23 +173,23 @@ func (c *LocalCache) getCachePath(image string) string {
 
 // isConstraint checks if a string is a semantic version constraint
 func isConstraint(tag string) bool {
-	_, err := semver.NewConstraint(tag)
-	if err != nil {
+	if _, err := semver.NewVersion(tag); err == nil {
 		return false
 	}
-
-	return true
+	_, err := semver.NewConstraint(tag)
+	return err == nil
 }
 
 // findLatestCachedVersionForConstraint returns the cache-path for the the latest tag that matches the image version constraint.
 // If cache miss an empty string is returned.
 // image must be a valid image name with the format: <registry>/<image>:<tag>, where tag can be a semantic version constraint
 func (c *LocalCache) findLatestCachedVersionForConstraint(image string) (string, error) {
+	fmt.Printf("findLatestCachedVersionForConstraint() checking %s\n", image)
 	imageBase, imageTag := separateImageTag(image)
 
 	constraint, err := semver.NewConstraint(imageTag)
 	if err != nil {
-		return c.Exists(image)
+		return "", nil
 	}
 
 	cachePath := c.getCachePath(image)
@@ -207,12 +214,14 @@ func (c *LocalCache) findLatestCachedVersionForConstraint(image string) (string,
 		return "", errors.Wrapf(err, "failed to search cache-directory %s for existing tag", cacheDir)
 	}
 
+	fmt.Printf("found these tags in cache: %v\n", tags)
 	if len(tags) == 0 {
 		return "", nil
 	}
 
 	vs := convertToSemver(tags)
 
+	fmt.Printf("convertes to semver: %v\n", vs)
 	sort.Sort(sort.Reverse(semver.Collection(vs)))
 
 	var latestVersionInConstraint string
@@ -228,5 +237,6 @@ func (c *LocalCache) findLatestCachedVersionForConstraint(image string) (string,
 	}
 
 	// return the cache-path with the latest valid version instead of the constraint
-	return strings.Replace(cachePath, imageTag, latestVersionInConstraint, 0), nil
+	fmt.Printf("returning: %s\n", strings.ReplaceAll(cachePath, imageTag, latestVersionInConstraint))
+	return strings.ReplaceAll(cachePath, imageTag, latestVersionInConstraint), nil
 }
