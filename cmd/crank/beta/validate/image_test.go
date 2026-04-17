@@ -171,30 +171,39 @@ func TestSeparateImageTag(t *testing.T) {
 		args args
 		want want
 	}{
-		"ColonSeparatedImage": {
+		"ImageWithDigest": {
 			args: args{
-				image: "github.com/crossplane/crossplane:v2.0.0",
+				image: "my-registry:1234/crossplane/crossplane:v2.0.0@sha256:abc1234",
 			},
 			want: want{
-				imageBase: "github.com/crossplane/crossplane",
+				imageBase: "my-registry:1234/crossplane/crossplane:v2.0.0@sha256",
+				imageTag:  "abc1234",
+			},
+		},
+		"RegistryWithPort": {
+			args: args{
+				image: "my-registry:1234/crossplane/crossplane:v2.0.0",
+			},
+			want: want{
+				imageBase: "my-registry:1234/crossplane/crossplane",
 				imageTag:  "v2.0.0",
 			},
 		},
-		"AtSeparatedImage": {
+		"ColonSeparatedImage": {
 			args: args{
-				image: "github.com/crossplane/crossplane@v2.0.0",
+				image: "ghcr.io/crossplane/crossplane:v2.0.0",
 			},
 			want: want{
-				imageBase: "github.com/crossplane/crossplane",
+				imageBase: "ghcr.io/crossplane/crossplane",
 				imageTag:  "v2.0.0",
 			},
 		},
 		"EmptyTag": {
 			args: args{
-				image: "github.com/crossplane/crossplane:",
+				image: "ghcr.io/crossplane/crossplane:",
 			},
 			want: want{
-				imageBase: "github.com/crossplane/crossplane",
+				imageBase: "ghcr.io/crossplane/crossplane",
 				imageTag:  "",
 			},
 		},

@@ -131,7 +131,8 @@ func (c *LocalCache) Load(image string) ([]*unstructured.Unstructured, error) {
 }
 
 // Exists checks if the cache contains the image and returns the path if it doesn't exist.
-// If the input had a semantic version constraint, the returned cache-path will include it on cache miss.
+// If the image contains a semantic version constraint, the returned cache-path will include it on cache miss,
+// as it can not be resolved by the cache.
 func (c *LocalCache) Exists(image string) (string, error) {
 	path := c.getCachePath(image)
 
@@ -168,7 +169,7 @@ func (c *LocalCache) getCachePath(image string) string {
 	return filepath.Join(c.cacheDir, cacheImagePath)
 }
 
-// isConstraint checks if a string is a semantic version constraint
+// isConstraint checks if a string is a semantic version constraint.
 func isConstraint(tag string) bool {
 	if _, err := semver.NewVersion(tag); err == nil {
 		return false
@@ -177,9 +178,9 @@ func isConstraint(tag string) bool {
 	return err == nil
 }
 
-// findLatestCachedVersionForConstraint returns the cache-path for the the latest tag that matches the image version constraint.
-// If cache miss an empty string is returned.
-// image must be a valid image name with the format: <registry>/<image>:<tag>, where tag can be a semantic version constraint
+// findLatestCachedVersionForConstraint returns the cache-path for the latest tag that matches the image version constraint.
+// On cache miss, an empty string is returned.
+// The image must be a valid image name with the format: <registry>/<image>:<tag>, where tag can be a semantic version constraint.
 func (c *LocalCache) findLatestCachedVersionForConstraint(image string) (string, error) {
 	imageBase, imageTag := separateImageTag(image)
 
