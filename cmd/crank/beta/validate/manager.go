@@ -248,7 +248,7 @@ func (m *Manager) addDependencies(confs map[string]*metav1.Configuration) error 
 		if cfg == nil {
 			m.deps[image] = true // we need to download the configuration package for the XRDs
 
-			layer, err := m.fetcher.FetchBaseLayer(image)
+			_, layer, err := m.fetcher.FetchBaseLayer(image)
 			if err != nil {
 				return errors.Wrapf(err, "cannot download package %s", image)
 			}
@@ -323,7 +323,7 @@ func (m *Manager) cacheDependencies() error {
 
 		var schemas [][]byte
 		// handling for packages
-		resolvedImage, layer, err := m.fetcher.FetchBaseLayer(image)
+		_, layer, err := m.fetcher.FetchBaseLayer(image)
 		switch {
 		case IsErrBaseLayerNotFound(err):
 			// We fall back to fetching the image if the base layer is not found

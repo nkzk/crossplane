@@ -143,12 +143,18 @@ func (f *Fetcher) FetchBaseLayer(image string) (string, *conregv1.Layer, error) 
 	return image, &ll, nil
 }
 
-// Separate the image base and the image tag
+// Separate the image base and the image tag based on ':' or "@" if colon is missing
 func separateImageTag(image string) (imageBase, imageTag string) {
-	parts := strings.Split(image, ":")
-	lastPart := len(parts) - 1
+	i := strings.Index(image, ":")
+	if i == -1 {
+		i = strings.Index(image, "@")
+	}
 
-	return strings.Join(parts[0:lastPart], ":"), parts[lastPart]
+	if i != -1 {
+		return image[:i], image[i+1:]
+	}
+
+	return image, ""
 }
 
 // Convert tags to semver versions.
