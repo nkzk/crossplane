@@ -195,6 +195,10 @@ func (c *LocalCache) findLatestCachedVersionForConstraint(image string) (string,
 
 	tags := []string{}
 	err = filepath.WalkDir(cacheDir, func(p string, d iofs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+
 		if d.IsDir() && strings.HasPrefix(d.Name(), path.Base(imageBase)) {
 			i := strings.Index(d.Name(), "@")
 			if i == -1 {
